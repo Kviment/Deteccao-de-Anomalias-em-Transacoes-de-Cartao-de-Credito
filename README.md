@@ -1,254 +1,192 @@
 # Detecção de Anomalias em Transações de Cartão de Crédito
 
-Projeto desenvolvido para estudar técnicas de **detecção de anomalias (Anomaly Detection)** aplicadas à identificação de possíveis fraudes em transações realizadas com cartão de crédito.
+Estudo experimental sobre identificação de transações potencialmente fraudulentas por meio de técnicas de detecção de anomalias.
 
-A análise utiliza dados públicos disponibilizados pela **ULB no Kaggle** e compara duas abordagens: **Isolation Forest** e **Autoencoder**.
+O projeto compara dois métodos de aprendizado de máquina: Isolation Forest e Autoencoder. A principal característica da abordagem é não utilizar a classificação de fraude durante o treinamento dos modelos.
 
----
+## 1. Proposta
 
-## Visão geral
+Fraudes representam uma pequena parcela das operações realizadas com cartões. Essa característica dificulta o uso de métodos tradicionais de classificação, principalmente quando novos padrões de fraude ainda não possuem exemplos rotulados.
 
-A identificação de fraudes pode ser realizada por meio de modelos supervisionados, utilizando exemplos previamente classificados. Neste projeto, a proposta é diferente: os algoritmos procuram reconhecer o comportamento predominante das transações e destacar registros que apresentam características fora desse padrão.
+Neste projeto, os algoritmos são utilizados para aprender características do comportamento considerado normal e atribuir pontuações maiores às operações que apresentam maior divergência desse padrão.
 
-O treinamento dos modelos não utiliza a coluna `Class`. Essa informação é reservada para a etapa de avaliação, permitindo verificar posteriormente se as anomalias identificadas correspondem às fraudes reais.
+A coluna `Class` permanece separada durante o treinamento e é utilizada posteriormente para medir a qualidade das detecções.
 
----
+## 2. Base de dados
 
-## Dados utilizados
+Foi utilizado o conjunto de dados Credit Card Fraud Detection, disponibilizado pela ULB no Kaggle.
 
-A base escolhida é o **Credit Card Fraud Detection**, disponível publicamente no Kaggle.
+Características principais:
 
-**Principais características:**
+| Informação                      |            Valor |
+| ------------------------------- | ---------------: |
+| Total de operações              |          284.807 |
+| Fraudes identificadas           |              492 |
+| Variáveis preditoras            |               30 |
+| Percentual aproximado de fraude |            0,17% |
+| Período                         | Setembro de 2013 |
 
-* 284.807 registros;
-* 492 transações fraudulentas;
-* aproximadamente 0,17% de fraudes;
-* 30 variáveis utilizadas como entrada;
-* dados referentes a transações de cartões europeus;
-* variáveis `V1` a `V28` obtidas por transformação PCA;
-* informações adicionais de `Time` e `Amount`.
+As variáveis `V1` até `V28` são atributos transformados por PCA. Também estão presentes as colunas `Time` e `Amount`.
 
-Fonte:
+Fonte: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
 
-[Credit Card Fraud Detection — Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud)
-
----
-
-## Estrutura
+## 3. Organização
 
 ```text
 .
 ├── data/
-│   └── creditcard.csv
-│
 ├── notebooks/
-│   └── 01_exploracao.ipynb
-│
+│   └── analise_transacoes.ipynb
 ├── src/
-│   ├── preprocessing.py
-│   ├── models.py
-│   └── evaluation.py
-│
+│   ├── data_processing.py
+│   ├── anomaly_models.py
+│   └── metrics.py
 ├── requirements.txt
+├── .gitignore
 └── README.md
 ```
 
-### Principais arquivos
+## 4. Tratamento das informações
 
-| Arquivo               | Função                              |
-| --------------------- | ----------------------------------- |
-| `01_exploracao.ipynb` | Executa a análise e os experimentos |
-| `preprocessing.py`    | Realiza a preparação dos dados      |
-| `models.py`           | Contém os modelos de detecção       |
-| `evaluation.py`       | Calcula as métricas utilizadas      |
-| `requirements.txt`    | Lista as dependências do projeto    |
+O processamento da base contempla:
 
-> O arquivo `creditcard.csv` não deve ser versionado no GitHub. A base pode ser obtida diretamente pelo Kaggle.
+* carregamento dos registros;
+* remoção de duplicidades;
+* criação de informações relacionadas ao horário das operações;
+* transformação das informações temporais em variáveis cíclicas;
+* aplicação de RobustScaler ao valor das transações;
+* separação das operações normais para treinamento do Autoencoder.
 
----
+O atributo `Class` não é utilizado como entrada dos modelos.
 
-## Fluxo de processamento
-
-O projeto segue, de forma geral, o seguinte processo:
-
-```text
-Dataset
-   ↓
-Análise exploratória
-   ↓
-Tratamento dos dados
-   ↓
-Criação das variáveis
-   ↓
-Normalização
-   ↓
-Treinamento dos modelos
-   ↓
-Identificação das anomalias
-   ↓
-Avaliação dos resultados
-```
-
----
-
-## Preparação dos dados
-
-Antes do treinamento, são realizadas algumas etapas de tratamento:
-
-1. análise da estrutura e distribuição dos dados;
-2. verificação de registros duplicados;
-3. tratamento das duplicidades encontradas;
-4. criação da variável `Hour` a partir de `Time`;
-5. transformação da informação temporal para uma representação cíclica;
-6. aplicação de `RobustScaler` nas variáveis `Amount` e `Hour`.
-
-O tratamento busca reduzir a influência de valores extremos e fornecer aos modelos dados em uma escala mais adequada.
-
----
-
-## Modelos testados
+## 5. Estratégias utilizadas
 
 ### Isolation Forest
 
-O **Isolation Forest**, disponível no `scikit-learn`, identifica observações que podem ser separadas com maior facilidade do restante dos dados.
+O Isolation Forest trabalha identificando observações que apresentam maior facilidade de isolamento em relação ao conjunto de dados.
 
-Neste experimento, o algoritmo é utilizado como uma abordagem independente para atribuir um grau de anormalidade às transações.
+A pontuação produzida pelo algoritmo é convertida em um indicador de anormalidade, permitindo ordenar as transações de acordo com seu grau de divergência.
 
 ### Autoencoder
 
-O segundo método utiliza uma rede neural implementada com **PyTorch**.
+O Autoencoder utiliza uma rede neural para aprender uma representação compacta das transações normais.
 
-O Autoencoder aprende a reconstruir transações consideradas normais. Durante a detecção, registros que apresentam maior erro de reconstrução são tratados como possíveis anomalias.
-
-Arquitetura utilizada:
+A rede possui uma etapa de codificação e outra de reconstrução:
 
 ```text
-Entrada: 30
-    ↓
-Camada intermediária: 14
-    ↓
-Saída: 30
+Entrada
+  ↓
+18 neurônios
+  ↓
+8 neurônios
+  ↓
+18 neurônios
+  ↓
+Saída
 ```
 
-O modelo é treinado somente com transações normais, sem utilizar a classificação de fraude como variável de treinamento.
+Durante a avaliação, o erro entre a entrada original e sua reconstrução é utilizado como indicador de anomalia.
 
----
+## 6. Avaliação dos modelos
 
-## Avaliação
+Devido ao forte desbalanceamento da base, a análise não utiliza somente acurácia.
 
-O conjunto de dados possui um forte desbalanceamento entre operações legítimas e fraudulentas. Por esse motivo, utilizar somente **accuracy** poderia gerar uma interpretação equivocada do desempenho.
-
-Foram priorizadas as seguintes métricas:
+São consideradas métricas como:
 
 * Precision;
 * Recall;
 * F1-score;
-* Average Precision (AP);
-* curva Precision-Recall.
+* Average Precision.
 
-A variável `Class` é utilizada somente nesta etapa para comparar as previsões dos modelos com os registros de fraude conhecidos.
+A Average Precision recebe atenção especial por resumir o desempenho ao longo da curva Precision-Recall.
 
----
+## 7. Resultados
 
-## Resultados
+Os experimentos realizados anteriormente com essa base apresentaram:
 
-Os experimentos produziram os seguintes valores de **Average Precision**:
+| Técnica          |    AP |
+| ---------------- | ----: |
+| Isolation Forest | 0,134 |
+| Autoencoder      | 0,304 |
 
-| Modelo           | Average Precision |
-| :--------------- | ----------------: |
-| Isolation Forest |             0,134 |
-| Autoencoder      |             0,304 |
+Nesse cenário, o Autoencoder obteve o melhor resultado entre as duas abordagens.
 
-Entre as duas abordagens avaliadas, o **Autoencoder apresentou o melhor resultado**, alcançando uma Average Precision de `0,304`.
+Os valores podem variar quando o projeto é executado novamente, principalmente devido a alterações nos parâmetros, processamento dos dados e treinamento da rede neural.
 
-Esse desempenho sugere que a capacidade da rede neural de representar relações não lineares entre as variáveis pode contribuir para a identificação de padrões associados às transações fraudulentas.
+## 8. Instalação
 
----
-
-## Tecnologias
-
-* Python
-* pandas
-* scikit-learn
-* PyTorch
-* matplotlib
-* seaborn
-* Jupyter Notebook
-
----
-
-## Como executar
-
-### 1. Clonar o projeto
+Clone o repositório:
 
 ```bash
-git clone <URL_DO_REPOSITORIO>
-cd <NOME_DO_REPOSITORIO>
+git clone https://github.com/Kviment/Deteccao-de-Anomalias-em-Transacoes-de-Cartao-de-Credito.git
+cd Deteccao-de-Anomalias-em-Transacoes-de-Cartao-de-Credito
 ```
 
-### 2. Instalar as dependências
+Instale as bibliotecas necessárias:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configurar o Kaggle
+## 9. Obtendo os dados
 
-Configure a autenticação da API do Kaggle conforme as credenciais disponíveis em sua conta.
+A base deve ser baixada separadamente do Kaggle.
 
-Depois, faça o download da base:
+Com a API configurada, utilize:
 
 ```bash
 python -m kaggle datasets download \
-  -d mlg-ulb/creditcardfraud \
-  -p data \
-  --unzip
+    -d mlg-ulb/creditcardfraud \
+    -p data \
+    --unzip
 ```
 
-### 4. Executar a análise
-
-Abra:
+O arquivo resultante deve ficar dentro de:
 
 ```text
-notebooks/01_exploracao.ipynb
+data/
 ```
 
-e execute as células do notebook em sequência.
+Por exemplo:
 
----
+```text
+data/creditcard.csv
+```
 
-## Objetivos de aprendizado
+## 10. Execução
 
-Este projeto foi utilizado para praticar conceitos relacionados a:
+A análise principal pode ser realizada pelo notebook:
+
+```text
+notebooks/analise_transacoes.ipynb
+```
+
+Execute as etapas na sequência para realizar o carregamento, tratamento, treinamento e avaliação.
+
+## 11. Conhecimentos explorados
+
+O projeto permite trabalhar conceitos de:
 
 * aprendizado não supervisionado;
 * detecção de anomalias;
-* tratamento de dados desbalanceados;
-* pré-processamento de dados;
+* processamento de dados;
+* redução de dimensionalidade;
 * redes neurais;
-* avaliação de modelos;
-* análise de fraude financeira;
-* utilização de métricas Precision-Recall.
+* métricas para bases desbalanceadas;
+* análise de transações financeiras;
+* interpretação de resultados de modelos.
 
----
+## 12. Próximos experimentos
 
-## Possíveis melhorias
+Algumas possibilidades de continuidade incluem:
 
-Como continuidade do estudo, algumas possibilidades seriam:
+* testar diferentes parâmetros do Isolation Forest;
+* modificar a dimensão do espaço latente do Autoencoder;
+* comparar outras técnicas de detecção de anomalias;
+* estudar diferentes métodos de tratamento do desbalanceamento;
+* analisar a influência das variáveis temporais;
+* comparar diferentes critérios para definir o limite de anomalia.
 
-* testar outros algoritmos de detecção de anomalias;
-* ajustar os hiperparâmetros dos modelos;
-* comparar diferentes arquiteturas de Autoencoder;
-* avaliar diferentes estratégias de normalização;
-* investigar técnicas específicas para conjuntos altamente desbalanceados;
-* analisar os falsos positivos e falsos negativos obtidos.
+## 13. Observação
 
----
-
-## Licença e dados
-
-Este projeto possui finalidade **educacional e experimental**.
-
-O dataset utilizado pertence à sua respectiva fonte e deve ser obtido de acordo com os termos de uso estabelecidos pelo Kaggle.
-
----
+Este repositório possui finalidade educacional. Os resultados apresentados não devem ser interpretados como um sistema de detecção de fraude pronto para utilização em ambiente financeiro real.
