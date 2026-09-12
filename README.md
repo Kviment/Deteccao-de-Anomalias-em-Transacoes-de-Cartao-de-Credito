@@ -165,7 +165,7 @@ Esse desempenho sugere que a capacidade da rede neural de representar relações
 
 ---
 
-## 🛠️ Tecnologias
+## Tecnologias
 
 * Python
 * pandas
